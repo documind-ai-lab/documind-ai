@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+"""Review a GitHub pull request diff with Antigravity CLI and optionally post it."""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+MARKER = "<!-- agy-pr-review -->"
+
+
+def run(command: list[str], *, cwd: Path, input_text: str | None = None) -> str:
+    result = subprocess.run(
+        command,
+        cwd=cwd,
+        input=input_text,
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        sys.stderr.write(result.stderr or result.stdout)
+        raise SystemExit(result.returncode)
+    return result.stdout
+
+
+def require_command(name: str) -> None:
+    if shutil.which(name) is None:
+        raise SystemExit(f"'{name}' 명령을 찾을 수 없습니다. PATH를 확인해주세요.")
+
+
+def current_repo(cwd: Path) -> str:
+    return run(["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"], cwd=cwd).strip()
+
+
+def pr_diff(repo: str, pr_number: str, cwd: Path) -> str:
+    return run(["gh", "pr", "diff", pr_number, "--repo", repo], cwd=cwd)
+
+
+def build_prompt(repo: str, pr_number: str, diff: str) -> str:
+    return f"""현재 GitHub PR diff를 코드 리뷰 관점으로 검토해주세요.
+
+중요:
+- 파일을 수정하지 마세요.
+- 명령어를 실행하지 마세요.
+- 커밋하지 마세요.
+- 리뷰 코멘트만 한국어로 작성하세요.
+
+검토 기준:
+- 요구사항 충족 여부
+- 버그 가능성
+- 아키텍처/레이어 경계 위반
+- 테스트/검증 부족
+- 보안/권한/데이터 처리 리스크
+- 불필요한 복잡도
+- 문서/템플릿 표현의 모호함
+- 머지 전 확인 사항
+
+출력 형식:
+1. 반드시 수정해야 할 항목
+2. 수정하면 좋은 항목
+3. 문제 없음
+4. 머지 전 확인 사항
+
+대상:
+- 저장소: {repo}
+- PR: #{pr_number}
+
+PR diff:
+{diff}
+"""
+
+
+def review_with_agy(prompt: str, timeout: str, cwd: Path, model: str | None) -> str:
+    command = ["agy", "--print", prompt, "--print-timeout", timeout]
+    if model:
+        command.extend(["--model", model])
+    return run(command, cwd=cwd).strip()
+
+
+def comment_body(repo: str, pr_number: str, review: str) -> str:
+    generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
+    return f"""{MARKER}
+## Antigravity 리뷰 결과
+
+- 대상: `{repo}#{pr_number}`
+- 생성 시각: `{generated_at}`
+- 실행 명령: `scripts/agy-pr-review {pr_number} --post`
+
+{review}
+"""
+
+
+def gh_api(path: str, cwd: Path, method: str = "GET", payload: dict | None = None, paginate: bool = False) -> str:
+    command = ["gh", "api"]
+    if method != "GET":
+        command.extend(["-X", method])
+    if paginate:
+        command.append("--paginate")
+    command.append(path)
+    input_text = None
+    if payload is not None:
+        command.extend(["--input", "-"])
+        input_text = json.dumps(payload, ensure_ascii=False)
+    return run(command, cwd=cwd, input_text=input_text)
+
+
+def post_or_update_comment(repo: str, pr_number: str, body: str, cwd: Path) -> str:
+    viewer = json.loads(gh_api("user", cwd))
+    comments_raw = gh_api(f"repos/{repo}/issues/{pr_number}/comments", cwd, paginate=True)
+    comments = json.loads(comments_raw or "[]")
+
+    for comment in comments:
+        user = comment.get("user") or {}
+        if user.get("login") == viewer.get("login") and MARKER in (comment.get("body") or ""):
+            gh_api(f"repos/{repo}/issues/comments/{comment['id']}", cwd, method="PATCH", payload={"body": body})
+            return "updated"
+
+    gh_api(f"repos/{repo}/issues/{pr_number}/comments", cwd, method="POST", payload={"body": body})
+    return "created"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Antigravity CLI(agy)로 PR diff를 리뷰하고 GitHub PR 댓글로 남깁니다.",
+    )
+    parser.add_argument("pr_number", help="리뷰할 Pull Request 번호")
+    parser.add_argument("--repo", help="owner/repo 형식의 저장소명. 생략하면 현재 저장소를 사용합니다.")
+    parser.add_argument("--post", action="store_true", help="리뷰 결과를 PR 댓글로 생성하거나 기존 agy 리뷰 댓글을 갱신합니다.")
+    parser.add_argument("--timeout", default="5m", help="agy --print-timeout 값입니다. 기본값: 5m")
+    parser.add_argument("--model", help="agy에서 사용할 모델을 지정합니다.")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    cwd = Path.cwd()
+
+    require_command("gh")
+    require_command("agy")
+
+    repo = args.repo or current_repo(cwd)
+    diff = pr_diff(repo, args.pr_number, cwd)
+    if not diff.strip():
+        raise SystemExit("PR diff가 비어 있습니다. PR 번호와 base/head 상태를 확인해주세요.")
+
+    prompt = build_prompt(repo, args.pr_number, diff)
+    review = review_with_agy(prompt, args.timeout, cwd, args.model)
+    body = comment_body(repo, args.pr_number, review)
+
+    if args.post:
+        action = post_or_update_comment(repo, args.pr_number, body, cwd)
+        print(f"Antigravity 리뷰 댓글 {action}: {repo}#{args.pr_number}")
+    else:
+        print(body)
+        print("\n--post 옵션을 추가하면 위 내용을 PR 댓글로 생성하거나 갱신합니다.", file=sys.stderr)
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
