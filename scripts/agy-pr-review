@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -15,6 +16,7 @@ from typing import Any
 
 MARKER = "<!-- agy-pr-review -->"
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+MAX_COMMENT_BODY = 60000
 
 
 def run(command: list[str], *, cwd: Path, input_text: str | None = None) -> str:
@@ -24,11 +26,12 @@ def run(command: list[str], *, cwd: Path, input_text: str | None = None) -> str:
         input=input_text,
         text=True,
         encoding="utf-8",
+        errors="replace",
         capture_output=True,
     )
     if result.returncode != 0:
         sys.stderr.write(f"명령 실행 실패: {' '.join(command)}\n")
-        sys.stderr.write(result.stderr or result.stdout)
+        sys.stderr.write((result.stderr or "") + (result.stdout or ""))
         raise SystemExit(result.returncode)
     return result.stdout
 
@@ -83,7 +86,9 @@ def build_prompt(repo: str, pr_number: str, diff: str) -> str:
 - PR: #{pr_number}
 
 PR diff:
+```diff
 {diff}
+```
 """
 
 
@@ -94,9 +99,16 @@ def review_with_agy(prompt: str, timeout: str, cwd: Path, model: str | None) -> 
     return run(command, cwd=cwd, input_text=prompt).strip()
 
 
+def truncate_comment_body(body: str) -> str:
+    if len(body) <= MAX_COMMENT_BODY:
+        return body
+    suffix = "\n\n---\n리뷰 결과가 GitHub 댓글 길이 제한에 가까워 일부 내용을 생략했습니다. 더 작은 PR 단위로 나눠 다시 실행해주세요.\n"
+    return body[: MAX_COMMENT_BODY - len(suffix)] + suffix
+
+
 def comment_body(repo: str, pr_number: str, review: str) -> str:
     generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
-    return f"""{MARKER}
+    body = f"""{MARKER}
 ## Antigravity 리뷰 결과
 
 - 대상: `{repo}#{pr_number}`
@@ -105,6 +117,7 @@ def comment_body(repo: str, pr_number: str, review: str) -> str:
 
 {review}
 """
+    return truncate_comment_body(body)
 
 
 def gh_api(
@@ -140,15 +153,28 @@ def flatten_comments(raw_comments: Any) -> list[dict]:
     raise SystemExit("GitHub 댓글 목록 응답 형식이 예상과 다릅니다.")
 
 
+def viewer_login(cwd: Path) -> str:
+    try:
+        viewer = load_json(gh_api("user", cwd), "GitHub 사용자 정보")
+        login = viewer.get("login")
+        if login:
+            return login
+    except SystemExit:
+        if os.environ.get("GITHUB_ACTIONS"):
+            return "github-actions[bot]"
+        raise
+    raise SystemExit("GitHub 사용자 로그인 정보를 확인할 수 없습니다. gh auth status를 확인해주세요.")
+
+
 def post_or_update_comment(repo: str, pr_number: str, body: str, cwd: Path) -> str:
-    viewer = load_json(gh_api("user", cwd), "GitHub 사용자 정보")
+    login = viewer_login(cwd)
     comments_raw = gh_api(f"repos/{repo}/issues/{pr_number}/comments", cwd, paginate=True, slurp=True)
     comments = flatten_comments(load_json(comments_raw, "GitHub PR 댓글 목록"))
 
     for comment in comments:
         user = comment.get("user") or {}
         comment_body_text = comment.get("body") or ""
-        if user.get("login") == viewer.get("login") and comment_body_text.startswith(MARKER):
+        if user.get("login") == login and comment_body_text.startswith(MARKER):
             gh_api(f"repos/{repo}/issues/comments/{comment['id']}", cwd, method="PATCH", payload={"body": body})
             return "updated"
 

@@ -6,6 +6,7 @@ CodeRabbit을 필수 리뷰 도구로 사용하지 않고, Antigravity CLI(`agy`
 
 - `gh` CLI 인증이 완료되어 있어야 합니다.
 - `agy` CLI가 PATH에 있어야 합니다.
+- Python 3.9 이상을 권장합니다.
 - PR diff가 외부 AI 서비스인 Antigravity로 전달된다는 점을 이해하고 실행해야 합니다.
 
 ## 사용법
@@ -38,5 +39,7 @@ scripts/agy-pr-review 12 --repo documind-ai-lab/documind-client --post
 ## 구현 메모
 
 - PR diff는 `agy --print`의 stdin으로 전달해 큰 diff에서 명령 인자 길이 제한에 걸릴 가능성을 줄입니다.
+- PR diff는 프롬프트 안에서 `diff` 코드 블록으로 감싸 모델 지시문과 구분합니다.
+- GitHub 댓글 길이 제한에 가까워지면 리뷰 결과를 일부 생략하고 작은 PR 단위로 나누도록 안내합니다.
 - PR 번호와 저장소명은 실행 전에 간단히 검증합니다.
 - 기존 Antigravity 리뷰 댓글은 현재 GitHub 사용자와 `<!-- agy-pr-review -->` 시작 마커가 모두 일치할 때만 갱신합니다.
