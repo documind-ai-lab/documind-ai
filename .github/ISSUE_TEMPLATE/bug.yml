@@ -1,0 +1,65 @@
+name: Bug Report
+description: 재현 가능한 문제와 검증 기준을 기록합니다.
+title: "fix: "
+labels: ["bug", "ai"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        버그 이슈 제목은 `fix: 한국어 제목` 형식을 기본으로 사용합니다.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 문제
+      description: 어떤 문제가 발생했는지 적어주세요.
+      placeholder: 예) 문서 업로드 후 상태가 계속 처리 중으로 남아 있습니다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 동작
+      description: 기대한 동작을 적어주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 재현 절차
+      description: 문제를 재현하는 순서를 적어주세요.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 증거
+      description: 에러 로그, 스크린샷 설명, API 응답, 테스트 실패 메시지를 붙여주세요.
+      placeholder: 가능한 한 실제 증거를 남겨주세요.
+    validations:
+      required: false
+
+  - type: textarea
+    id: fix_plan
+    attributes:
+      label: 수정 계획
+      description: 수정 방향 또는 확인해야 할 가설을 적어주세요.
+      placeholder: 원인 후보와 확인 방법을 적어주세요.
+    validations:
+      required: false
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: 검증
+      description: 수정 후 어떤 방식으로 확인할지 적어주세요.
+      placeholder: 샘플 질문 평가, 출처 포함 여부, 근거 부족 처리 확인 등
+    validations:
+      required: true

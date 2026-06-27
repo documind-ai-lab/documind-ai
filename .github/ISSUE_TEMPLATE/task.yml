@@ -1,0 +1,86 @@
+name: Loop Task
+description: Goal -> Design -> Contract -> Test -> Implement -> Verify -> Docs 흐름으로 작업을 정의합니다.
+title: "feat: "
+labels: ["task", "ai"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        이슈는 작은 루프 하나로 끝낼 수 있는 크기로 작성합니다.
+        제목은 `feat: 한국어 제목` 형식을 기본으로 사용합니다.
+        핵심 관점: RAG 시나리오, 프롬프트, 평가 데이터셋, 출처 기반 답변 품질
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: 목표
+      description: 이번 작업의 목표를 한 문장으로 적어주세요.
+      placeholder: 예) 프로젝트 목록 API를 화면에 연결한다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: 범위
+      description: 이번 작업에 포함할 것과 제외할 것을 적어주세요.
+      placeholder: |
+        포함:
+        -
+        제외:
+        -
+    validations:
+      required: true
+
+  - type: textarea
+    id: design
+    attributes:
+      label: 설계
+      description: 책임 경계, 영향 받는 파일/모듈, 주요 흐름을 적어주세요.
+      placeholder: 어떤 계층/컴포넌트/서비스가 책임지는지 적어주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: contract
+    attributes:
+      label: 계약
+      description: 입력 문서, 질문, 기대 답변, 출처 기준을 적어주세요.
+      placeholder: 외부에서 보이는 입력/출력/상태를 적어주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tests
+    attributes:
+      label: 테스트
+      description: 먼저 만들거나 확인할 테스트/검증 기준을 적어주세요.
+      placeholder: |
+        - 정상 케이스:
+        - 실패 케이스:
+        - 경계값:
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: 검증
+      description: 완료 전에 실행할 검증 명령 또는 수동 확인 방법을 적어주세요.
+      placeholder: 샘플 질문 평가, 출처 포함 여부, 근거 부족 처리 확인 등
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: done
+    attributes:
+      label: 완료 기준
+      options:
+        - label: 목표와 범위가 명확하다.
+          required: true
+        - label: 계약 또는 기대 동작이 명확하다.
+          required: true
+        - label: 테스트 또는 수동 검증 증거가 있다.
+          required: true
+        - label: 문서 업데이트 필요 여부를 확인했다.
+          required: true
