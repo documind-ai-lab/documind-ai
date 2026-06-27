@@ -35,7 +35,7 @@ scripts/agy-pr-review 12 --repo documind-ai-lab/documind-client --post
 
 - `agy`는 코드를 수정하지 않고 리뷰 코멘트만 작성하도록 프롬프트합니다.
 - 댓글에는 `<!-- agy-pr-review -->` 마커를 넣어 같은 PR에서 재실행할 때 기존 댓글을 갱신합니다.
-- 댓글 조회는 최근 100개 댓글을 기준으로 기존 Antigravity 리뷰 댓글을 찾습니다.
+- 댓글 조회는 GitHub API pagination 결과를 모아 기존 Antigravity 리뷰 댓글을 찾습니다.
 - GitHub inline review가 아니라 PR Conversation의 일반 댓글로 남깁니다.
 - 머지 전에는 `agy` 리뷰 결과, 로컬 검증 결과, 남은 리스크를 PR 댓글이나 본문에 남깁니다.
 

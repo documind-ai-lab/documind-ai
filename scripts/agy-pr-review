@@ -210,7 +210,7 @@ def viewer_login(cwd: Path) -> str:
 
 def post_or_update_comment(repo: str, pr_number: str, body: str, cwd: Path) -> str:
     login = viewer_login(cwd)
-    comments_raw = gh_api(f"repos/{repo}/issues/{pr_number}/comments?per_page=100", cwd)
+    comments_raw = gh_api(f"repos/{repo}/issues/{pr_number}/comments", cwd, paginate=True, slurp=True)
     comments = flatten_comments(load_json(comments_raw, "GitHub PR 댓글 목록"))
 
     for comment in comments:
