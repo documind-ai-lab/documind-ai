@@ -35,6 +35,7 @@ scripts/agy-pr-review 12 --repo documind-ai-lab/documind-client --post
 
 - `agy`는 코드를 수정하지 않고 리뷰 코멘트만 작성하도록 프롬프트합니다.
 - 댓글에는 `<!-- agy-pr-review -->` 마커를 넣어 같은 PR에서 재실행할 때 기존 댓글을 갱신합니다.
+- 댓글 조회는 최근 100개 댓글을 기준으로 기존 Antigravity 리뷰 댓글을 찾습니다.
 - GitHub inline review가 아니라 PR Conversation의 일반 댓글로 남깁니다.
 - 머지 전에는 `agy` 리뷰 결과, 로컬 검증 결과, 남은 리스크를 PR 댓글이나 본문에 남깁니다.
 
@@ -42,7 +43,7 @@ scripts/agy-pr-review 12 --repo documind-ai-lab/documind-client --post
 
 - PR diff는 `agy --print`의 stdin으로 전달해 큰 diff에서 명령 인자 길이 제한에 걸릴 가능성을 줄입니다.
 - PR diff는 프롬프트 안에서 `<pr_diff>` 태그로 감싸 모델 지시문과 구분합니다.
-- GitHub 댓글 길이 제한에 가까워지면 UTF-8 바이트 기준으로 리뷰 결과를 일부 생략하고 작은 PR 단위로 나누도록 안내합니다.
+- GitHub 댓글 길이 제한에 가까워지면 줄 단위로 UTF-8 바이트를 누적해 리뷰 결과를 일부 생략하고 작은 PR 단위로 나누도록 안내합니다.
 - 댓글을 자를 때 닫는 백틱 공간을 먼저 확보한 뒤 줄 시작의 fenced code block 개수를 기준으로 닫는 백틱을 추가해 렌더링 깨짐을 줄입니다.
 - PR 번호와 저장소명은 실행 전에 간단히 검증합니다.
 - 기존 Antigravity 리뷰 댓글은 현재 GitHub 사용자와 `<!-- agy-pr-review -->` 시작 마커가 모두 일치할 때만 갱신합니다.

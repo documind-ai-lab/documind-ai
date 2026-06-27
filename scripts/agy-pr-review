@@ -115,6 +115,16 @@ def utf8_size(text: str) -> int:
 
 
 def trim_to_utf8_bytes(text: str, max_bytes: int) -> str:
+    lines: list[str] = []
+    current_size = 0
+    for line in text.splitlines(keepends=True):
+        line_size = utf8_size(line)
+        if current_size + line_size > max_bytes:
+            break
+        lines.append(line)
+        current_size += line_size
+    if lines:
+        return "".join(lines)
     return text.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore")
 
 
@@ -200,7 +210,7 @@ def viewer_login(cwd: Path) -> str:
 
 def post_or_update_comment(repo: str, pr_number: str, body: str, cwd: Path) -> str:
     login = viewer_login(cwd)
-    comments_raw = gh_api(f"repos/{repo}/issues/{pr_number}/comments", cwd, paginate=True, slurp=True)
+    comments_raw = gh_api(f"repos/{repo}/issues/{pr_number}/comments?per_page=100", cwd)
     comments = flatten_comments(load_json(comments_raw, "GitHub PR 댓글 목록"))
 
     for comment in comments:
