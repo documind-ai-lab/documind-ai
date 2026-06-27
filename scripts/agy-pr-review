@@ -6,12 +6,15 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 MARKER = "<!-- agy-pr-review -->"
+REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 
 def run(command: list[str], *, cwd: Path, input_text: str | None = None) -> str:
@@ -20,9 +23,11 @@ def run(command: list[str], *, cwd: Path, input_text: str | None = None) -> str:
         cwd=cwd,
         input=input_text,
         text=True,
+        encoding="utf-8",
         capture_output=True,
     )
     if result.returncode != 0:
+        sys.stderr.write(f"명령 실행 실패: {' '.join(command)}\n")
         sys.stderr.write(result.stderr or result.stdout)
         raise SystemExit(result.returncode)
     return result.stdout
@@ -31,6 +36,13 @@ def run(command: list[str], *, cwd: Path, input_text: str | None = None) -> str:
 def require_command(name: str) -> None:
     if shutil.which(name) is None:
         raise SystemExit(f"'{name}' 명령을 찾을 수 없습니다. PATH를 확인해주세요.")
+
+
+def load_json(raw: str, context: str) -> Any:
+    try:
+        return json.loads(raw or "null")
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"{context} JSON 파싱에 실패했습니다: {exc}") from exc
 
 
 def current_repo(cwd: Path) -> str:
@@ -76,10 +88,10 @@ PR diff:
 
 
 def review_with_agy(prompt: str, timeout: str, cwd: Path, model: str | None) -> str:
-    command = ["agy", "--print", prompt, "--print-timeout", timeout]
+    command = ["agy", "--print", "--print-timeout", timeout]
     if model:
         command.extend(["--model", model])
-    return run(command, cwd=cwd).strip()
+    return run(command, cwd=cwd, input_text=prompt).strip()
 
 
 def comment_body(repo: str, pr_number: str, review: str) -> str:
@@ -95,12 +107,21 @@ def comment_body(repo: str, pr_number: str, review: str) -> str:
 """
 
 
-def gh_api(path: str, cwd: Path, method: str = "GET", payload: dict | None = None, paginate: bool = False) -> str:
+def gh_api(
+    path: str,
+    cwd: Path,
+    method: str = "GET",
+    payload: dict | None = None,
+    paginate: bool = False,
+    slurp: bool = False,
+) -> str:
     command = ["gh", "api"]
     if method != "GET":
         command.extend(["-X", method])
     if paginate:
         command.append("--paginate")
+    if slurp:
+        command.append("--slurp")
     command.append(path)
     input_text = None
     if payload is not None:
@@ -109,14 +130,25 @@ def gh_api(path: str, cwd: Path, method: str = "GET", payload: dict | None = Non
     return run(command, cwd=cwd, input_text=input_text)
 
 
+def flatten_comments(raw_comments: Any) -> list[dict]:
+    if raw_comments is None:
+        return []
+    if isinstance(raw_comments, list) and raw_comments and isinstance(raw_comments[0], list):
+        return [comment for page in raw_comments for comment in page]
+    if isinstance(raw_comments, list):
+        return raw_comments
+    raise SystemExit("GitHub 댓글 목록 응답 형식이 예상과 다릅니다.")
+
+
 def post_or_update_comment(repo: str, pr_number: str, body: str, cwd: Path) -> str:
-    viewer = json.loads(gh_api("user", cwd))
-    comments_raw = gh_api(f"repos/{repo}/issues/{pr_number}/comments", cwd, paginate=True)
-    comments = json.loads(comments_raw or "[]")
+    viewer = load_json(gh_api("user", cwd), "GitHub 사용자 정보")
+    comments_raw = gh_api(f"repos/{repo}/issues/{pr_number}/comments", cwd, paginate=True, slurp=True)
+    comments = flatten_comments(load_json(comments_raw, "GitHub PR 댓글 목록"))
 
     for comment in comments:
         user = comment.get("user") or {}
-        if user.get("login") == viewer.get("login") and MARKER in (comment.get("body") or ""):
+        comment_body_text = comment.get("body") or ""
+        if user.get("login") == viewer.get("login") and comment_body_text.startswith(MARKER):
             gh_api(f"repos/{repo}/issues/comments/{comment['id']}", cwd, method="PATCH", payload={"body": body})
             return "updated"
 
@@ -133,7 +165,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--post", action="store_true", help="리뷰 결과를 PR 댓글로 생성하거나 기존 agy 리뷰 댓글을 갱신합니다.")
     parser.add_argument("--timeout", default="5m", help="agy --print-timeout 값입니다. 기본값: 5m")
     parser.add_argument("--model", help="agy에서 사용할 모델을 지정합니다.")
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    if not args.pr_number.isdigit():
+        parser.error("pr_number는 숫자만 입력해주세요. 예: scripts/agy-pr-review 12")
+    if args.repo and not REPO_PATTERN.fullmatch(args.repo):
+        parser.error("--repo는 owner/repo 형식이어야 합니다. 예: documind-ai-lab/documind-client")
+
+    return args
 
 
 def main() -> int:
@@ -144,6 +183,9 @@ def main() -> int:
     require_command("agy")
 
     repo = args.repo or current_repo(cwd)
+    if not REPO_PATTERN.fullmatch(repo):
+        raise SystemExit(f"저장소 이름이 owner/repo 형식이 아닙니다: {repo}")
+
     diff = pr_diff(repo, args.pr_number, cwd)
     if not diff.strip():
         raise SystemExit("PR diff가 비어 있습니다. PR 번호와 base/head 상태를 확인해주세요.")
