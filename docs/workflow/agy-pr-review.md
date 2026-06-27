@@ -31,6 +31,8 @@ scripts/agy-pr-review 12 --repo documind-ai-lab/documind-client --post
 
 ## 운영 기준
 
+- 현재 1차 버전은 로컬 개발자 터미널 실행을 기준으로 합니다. CI 자동 실행은 별도 검토 후 확장합니다.
+
 - `agy`는 코드를 수정하지 않고 리뷰 코멘트만 작성하도록 프롬프트합니다.
 - 댓글에는 `<!-- agy-pr-review -->` 마커를 넣어 같은 PR에서 재실행할 때 기존 댓글을 갱신합니다.
 - GitHub inline review가 아니라 PR Conversation의 일반 댓글로 남깁니다.
