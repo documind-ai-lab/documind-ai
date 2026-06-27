@@ -96,9 +96,9 @@ def build_prompt(repo: str, pr_number: str, diff: str) -> str:
 - PR: #{pr_number}
 
 PR diff:
-```diff
+<pr_diff>
 {diff}
-```
+</pr_diff>
 """
 
 
@@ -122,13 +122,12 @@ def truncate_comment_body(body: str) -> str:
         return body
 
     suffix = "\n\n---\n리뷰 결과가 GitHub 댓글 길이 제한에 가까워 일부 내용을 생략했습니다. 더 작은 PR 단위로 나눠 다시 실행해주세요.\n"
-    suffix_size = utf8_size(suffix)
-    limit = MAX_COMMENT_BYTES - suffix_size
-    truncated = trim_to_utf8_bytes(body, limit)
+    closing_fence = "\n```\n"
+    safe_limit = MAX_COMMENT_BYTES - utf8_size(suffix) - utf8_size(closing_fence)
+    truncated = trim_to_utf8_bytes(body, safe_limit)
 
     if truncated.count("```") % 2 == 1:
-        closing_fence = "\n```\n"
-        truncated = trim_to_utf8_bytes(truncated, limit - utf8_size(closing_fence)) + closing_fence
+        truncated += closing_fence
 
     return truncated + suffix
 
@@ -155,7 +154,7 @@ def gh_api(
     paginate: bool = False,
     slurp: bool = False,
 ) -> str:
-    command = ["gh", "api"]
+    command = ["gh", "api", "-H", "Accept: application/vnd.github+json", "-H", "Content-Type: application/json"]
     if method != "GET":
         command.extend(["-X", method])
     if paginate:
@@ -189,6 +188,9 @@ def viewer_login(cwd: Path) -> str:
             + exc.format()
         ) from exc
 
+    if not isinstance(viewer, dict):
+        raise SystemExit("GitHub 사용자 정보가 올바른 형식이 아닙니다. gh auth status를 확인해주세요.")
+
     login = viewer.get("login")
     if login:
         return login
@@ -203,7 +205,7 @@ def post_or_update_comment(repo: str, pr_number: str, body: str, cwd: Path) -> s
     for comment in comments:
         user = comment.get("user") or {}
         comment_body_text = comment.get("body") or ""
-        if user.get("login") == login and comment_body_text.startswith(MARKER):
+        if user.get("login") == login and comment_body_text.strip().startswith(MARKER):
             gh_api(f"repos/{repo}/issues/comments/{comment['id']}", cwd, method="PATCH", payload={"body": body})
             return "updated"
 
