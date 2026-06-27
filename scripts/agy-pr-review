@@ -17,6 +17,7 @@ MARKER = "<!-- agy-pr-review -->"
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 FENCED_CODE_PATTERN = re.compile(r"(?m)^[ \t]*```")
 MAX_COMMENT_BYTES = 60000
+DEFAULT_MAX_DIFF_BYTES = 300000
 
 
 class CommandExecutionError(Exception):
@@ -65,6 +66,15 @@ def current_repo(cwd: Path) -> str:
 
 def pr_diff(repo: str, pr_number: str, cwd: Path) -> str:
     return run(["gh", "pr", "diff", pr_number, "--repo", repo], cwd=cwd)
+
+
+def ensure_diff_size(diff: str, max_diff_bytes: int) -> None:
+    diff_size = utf8_size(diff)
+    if diff_size > max_diff_bytes:
+        raise SystemExit(
+            f"PR diff가 너무 큽니다: {diff_size} bytes > {max_diff_bytes} bytes. "
+            "PR을 더 작은 단위로 나누거나 --max-diff-bytes 값을 조정해주세요."
+        )
 
 
 def build_prompt(repo: str, pr_number: str, diff: str) -> str:
@@ -217,7 +227,10 @@ def post_or_update_comment(repo: str, pr_number: str, body: str, cwd: Path) -> s
         user = comment.get("user") or {}
         comment_body_text = comment.get("body") or ""
         if user.get("login") == login and comment_body_text.strip().startswith(MARKER):
-            gh_api(f"repos/{repo}/issues/comments/{comment['id']}", cwd, method="PATCH", payload={"body": body})
+            comment_id = comment.get("id")
+            if not comment_id:
+                continue
+            gh_api(f"repos/{repo}/issues/comments/{comment_id}", cwd, method="PATCH", payload={"body": body})
             return "updated"
 
     gh_api(f"repos/{repo}/issues/{pr_number}/comments", cwd, method="POST", payload={"body": body})
@@ -233,6 +246,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--post", action="store_true", help="리뷰 결과를 PR 댓글로 생성하거나 기존 agy 리뷰 댓글을 갱신합니다.")
     parser.add_argument("--timeout", default="5m", help="agy --print-timeout 값입니다. 기본값: 5m")
     parser.add_argument("--model", help="agy에서 사용할 모델을 지정합니다.")
+    parser.add_argument("--max-diff-bytes", type=int, default=DEFAULT_MAX_DIFF_BYTES, help="agy에 전달할 PR diff의 최대 UTF-8 바이트 수입니다. 기본값: 300000")
     args = parser.parse_args()
 
     if not args.pr_number.isdigit():
@@ -258,6 +272,7 @@ def main() -> int:
         diff = pr_diff(repo, args.pr_number, cwd)
         if not diff.strip():
             raise SystemExit("PR diff가 비어 있습니다. PR 번호와 base/head 상태를 확인해주세요.")
+        ensure_diff_size(diff, args.max_diff_bytes)
 
         prompt = build_prompt(repo, args.pr_number, diff)
         review = review_with_agy(prompt, args.timeout, cwd, args.model)

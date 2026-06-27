@@ -29,6 +29,12 @@ scripts/agy-pr-review 12 --post
 scripts/agy-pr-review 12 --repo documind-ai-lab/documind-client --post
 ```
 
+큰 PR은 기본적으로 300000 bytes를 초과하면 중단합니다. 필요하면 값을 조정할 수 있습니다.
+
+```bash
+scripts/agy-pr-review 12 --post --max-diff-bytes 500000
+```
+
 ## 운영 기준
 
 - 현재 1차 버전은 로컬 개발자 터미널 실행을 기준으로 합니다. CI 자동 실행은 별도 검토 후 확장합니다.
@@ -42,6 +48,7 @@ scripts/agy-pr-review 12 --repo documind-ai-lab/documind-client --post
 ## 구현 메모
 
 - PR diff는 `agy --print`의 stdin으로 전달해 큰 diff에서 명령 인자 길이 제한에 걸릴 가능성을 줄입니다.
+- 초대형 PR diff는 기본 300000 bytes에서 중단해 토큰 한도와 비용 리스크를 줄입니다.
 - PR diff는 프롬프트 안에서 `<pr_diff>` 태그로 감싸 모델 지시문과 구분합니다.
 - GitHub 댓글 길이 제한에 가까워지면 줄 단위로 UTF-8 바이트를 누적해 리뷰 결과를 일부 생략하고 작은 PR 단위로 나누도록 안내합니다.
 - 댓글을 자를 때 닫는 백틱 공간을 먼저 확보한 뒤 줄 시작의 fenced code block 개수를 기준으로 닫는 백틱을 추가해 렌더링 깨짐을 줄입니다.
