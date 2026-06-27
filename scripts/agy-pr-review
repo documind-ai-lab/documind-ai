@@ -15,6 +15,7 @@ from typing import Any
 
 MARKER = "<!-- agy-pr-review -->"
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+FENCED_CODE_PATTERN = re.compile(r"(?m)^[ \t]*```")
 MAX_COMMENT_BYTES = 60000
 
 
@@ -126,7 +127,7 @@ def truncate_comment_body(body: str) -> str:
     safe_limit = MAX_COMMENT_BYTES - utf8_size(suffix) - utf8_size(closing_fence)
     truncated = trim_to_utf8_bytes(body, safe_limit)
 
-    if truncated.count("```") % 2 == 1:
+    if len(FENCED_CODE_PATTERN.findall(truncated)) % 2 == 1:
         truncated += closing_fence
 
     return truncated + suffix

@@ -43,6 +43,6 @@ scripts/agy-pr-review 12 --repo documind-ai-lab/documind-client --post
 - PR diff는 `agy --print`의 stdin으로 전달해 큰 diff에서 명령 인자 길이 제한에 걸릴 가능성을 줄입니다.
 - PR diff는 프롬프트 안에서 `<pr_diff>` 태그로 감싸 모델 지시문과 구분합니다.
 - GitHub 댓글 길이 제한에 가까워지면 UTF-8 바이트 기준으로 리뷰 결과를 일부 생략하고 작은 PR 단위로 나누도록 안내합니다.
-- 댓글을 자를 때 닫는 백틱 공간을 먼저 확보한 뒤 열린 마크다운 코드 블록이 있으면 닫는 백틱을 추가해 렌더링 깨짐을 줄입니다.
+- 댓글을 자를 때 닫는 백틱 공간을 먼저 확보한 뒤 줄 시작의 fenced code block 개수를 기준으로 닫는 백틱을 추가해 렌더링 깨짐을 줄입니다.
 - PR 번호와 저장소명은 실행 전에 간단히 검증합니다.
 - 기존 Antigravity 리뷰 댓글은 현재 GitHub 사용자와 `<!-- agy-pr-review -->` 시작 마커가 모두 일치할 때만 갱신합니다.
