@@ -54,7 +54,12 @@ scripts/agy-pr-review 12 --post --max-diff-bytes 500000
 - `templates/agy-review-prompt.md`: Antigravity에 전달하는 리뷰 지시문
 - `templates/agy-review-comment.md`: GitHub PR Conversation에 남기는 댓글 형식
 
-템플릿에서 사용할 수 있는 치환값은 `{{repo}}`, `{{pr_number}}`, `{{diff}}`, `{{marker}}`, `{{generated_at}}`, `{{command}}`, `{{model}}`, `{{review}}`입니다.
+템플릿별 치환값은 다음과 같습니다.
+
+- `templates/agy-review-prompt.md`: `{{repo}}`, `{{pr_number}}`, `{{diff}}`
+- `templates/agy-review-comment.md`: `{{marker}}`, `{{repo}}`, `{{pr_number}}`, `{{generated_at}}`, `{{command}}`, `{{model}}`, `{{review}}`
+
+알 수 없는 치환값은 오타 방지를 위해 오류로 처리합니다.
 
 ## 운영 기준
 
@@ -76,4 +81,5 @@ scripts/agy-pr-review 12 --post --max-diff-bytes 500000
 - GitHub 댓글 길이 제한에 가까워지면 줄 단위로 UTF-8 바이트를 누적해 리뷰 결과를 일부 생략하고 작은 PR 단위로 나누도록 안내합니다.
 - 댓글을 자를 때 닫는 백틱 공간을 먼저 확보한 뒤 줄 시작의 fenced code block 개수를 기준으로 닫는 백틱을 추가해 렌더링 깨짐을 줄입니다.
 - PR 번호와 저장소명은 실행 전에 간단히 검증합니다.
+- 템플릿 파일은 현재 실행 위치가 아니라 `scripts/agy-pr-review` 파일 위치를 기준으로 찾습니다.
 - 기존 Antigravity 리뷰 댓글은 현재 GitHub 사용자와 `<!-- agy-pr-review -->` 시작 마커가 모두 일치할 때만 갱신합니다.

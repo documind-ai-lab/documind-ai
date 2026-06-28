@@ -19,8 +19,10 @@ FENCED_CODE_PATTERN = re.compile(r"(?m)^[ \t]*```")
 MAX_COMMENT_BYTES = 60000
 DEFAULT_MAX_DIFF_BYTES = 300000
 DEFAULT_MODEL = "Gemini 3.1 Pro (High)"
-PROMPT_TEMPLATE_PATH = Path("templates/agy-review-prompt.md")
-COMMENT_TEMPLATE_PATH = Path("templates/agy-review-comment.md")
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+PROMPT_TEMPLATE_PATH = REPO_ROOT / "templates/agy-review-prompt.md"
+COMMENT_TEMPLATE_PATH = REPO_ROOT / "templates/agy-review-comment.md"
 TEMPLATE_TOKEN_PATTERN = re.compile(r"{{\s*([A-Za-z_][A-Za-z0-9_]*)\s*}}")
 
 
@@ -81,10 +83,16 @@ def ensure_diff_size(diff: str, max_diff_bytes: int) -> None:
         )
 
 
-def load_template(cwd: Path, relative_path: Path) -> str:
-    path = cwd / relative_path
+def display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def load_template(path: Path) -> str:
     if not path.is_file():
-        raise SystemExit(f"템플릿 파일을 찾을 수 없습니다: {relative_path}")
+        raise SystemExit(f"템플릿 파일을 찾을 수 없습니다: {display_path(path)}")
     return path.read_text(encoding="utf-8")
 
 
@@ -98,8 +106,8 @@ def render_template(template: str, values: dict[str, str], context: str) -> str:
     return TEMPLATE_TOKEN_PATTERN.sub(replace_token, template)
 
 
-def build_prompt(repo: str, pr_number: str, diff: str, cwd: Path) -> str:
-    template = load_template(cwd, PROMPT_TEMPLATE_PATH)
+def build_prompt(repo: str, pr_number: str, diff: str) -> str:
+    template = load_template(PROMPT_TEMPLATE_PATH)
     return render_template(
         template,
         {
@@ -149,9 +157,9 @@ def truncate_comment_body(body: str) -> str:
     return truncated + suffix
 
 
-def comment_body(repo: str, pr_number: str, model: str, review: str, cwd: Path) -> str:
+def comment_body(repo: str, pr_number: str, model: str, review: str) -> str:
     generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
-    template = load_template(cwd, COMMENT_TEMPLATE_PATH)
+    template = load_template(COMMENT_TEMPLATE_PATH)
     body = render_template(
         template,
         {
@@ -275,9 +283,9 @@ def main() -> int:
             raise SystemExit("PR diff가 비어 있습니다. PR 번호와 base/head 상태를 확인해주세요.")
         ensure_diff_size(diff, args.max_diff_bytes)
 
-        prompt = build_prompt(repo, args.pr_number, diff, cwd)
+        prompt = build_prompt(repo, args.pr_number, diff)
         review = review_with_agy(prompt, args.timeout, cwd, args.model)
-        body = comment_body(repo, args.pr_number, args.model, review, cwd)
+        body = comment_body(repo, args.pr_number, args.model, review)
 
         if args.post:
             action = post_or_update_comment(repo, args.pr_number, body, cwd)
