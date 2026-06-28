@@ -18,6 +18,7 @@ REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 FENCED_CODE_PATTERN = re.compile(r"(?m)^[ \t]*```")
 MAX_COMMENT_BYTES = 60000
 DEFAULT_MAX_DIFF_BYTES = 300000
+DEFAULT_MODEL = "Gemini 3.1 Pro (High)"
 
 
 class CommandExecutionError(Exception):
@@ -113,10 +114,8 @@ PR diff:
 """
 
 
-def review_with_agy(prompt: str, timeout: str, cwd: Path, model: str | None) -> str:
-    command = ["agy", "--print", "--print-timeout", timeout]
-    if model:
-        command.extend(["--model", model])
+def review_with_agy(prompt: str, timeout: str, cwd: Path, model: str) -> str:
+    command = ["agy", "--print", "--print-timeout", timeout, "--model", model]
     return run(command, cwd=cwd, input_text=prompt).strip()
 
 
@@ -153,7 +152,7 @@ def truncate_comment_body(body: str) -> str:
     return truncated + suffix
 
 
-def comment_body(repo: str, pr_number: str, review: str) -> str:
+def comment_body(repo: str, pr_number: str, model: str, review: str) -> str:
     generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
     body = f"""{MARKER}
 ## Antigravity 리뷰 결과
@@ -161,6 +160,7 @@ def comment_body(repo: str, pr_number: str, review: str) -> str:
 - 대상: `{repo}#{pr_number}`
 - 생성 시각: `{generated_at}`
 - 실행 명령: `scripts/agy-pr-review {pr_number} --post`
+- 모델: `{model}`
 
 {review}
 """
@@ -245,7 +245,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo", help="owner/repo 형식의 저장소명. 생략하면 현재 저장소를 사용합니다.")
     parser.add_argument("--post", action="store_true", help="리뷰 결과를 PR 댓글로 생성하거나 기존 agy 리뷰 댓글을 갱신합니다.")
     parser.add_argument("--timeout", default="5m", help="agy --print-timeout 값입니다. 기본값: 5m")
-    parser.add_argument("--model", help="agy에서 사용할 모델을 지정합니다.")
+    parser.add_argument("--model", default=DEFAULT_MODEL, help=f"agy에서 사용할 모델을 지정합니다. 기본값: {DEFAULT_MODEL}")
     parser.add_argument("--max-diff-bytes", type=int, default=DEFAULT_MAX_DIFF_BYTES, help="agy에 전달할 PR diff의 최대 UTF-8 바이트 수입니다. 기본값: 300000")
     args = parser.parse_args()
 
@@ -276,7 +276,7 @@ def main() -> int:
 
         prompt = build_prompt(repo, args.pr_number, diff)
         review = review_with_agy(prompt, args.timeout, cwd, args.model)
-        body = comment_body(repo, args.pr_number, review)
+        body = comment_body(repo, args.pr_number, args.model, review)
 
         if args.post:
             action = post_or_update_comment(repo, args.pr_number, body, cwd)
