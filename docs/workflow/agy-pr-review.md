@@ -59,7 +59,7 @@ scripts/agy-pr-review 12 --post --max-diff-bytes 500000
 - `templates/agy-review-prompt.md`: `{{repo}}`, `{{pr_number}}`, `{{diff}}`
 - `templates/agy-review-comment.md`: `{{marker}}`, `{{repo}}`, `{{pr_number}}`, `{{generated_at}}`, `{{command}}`, `{{model}}`, `{{review}}`
 
-알 수 없는 치환값은 오타 방지를 위해 오류로 처리합니다.
+알 수 없는 치환값은 오타 방지를 위해 오류로 처리합니다. 템플릿 본문에 중괄호 토큰을 문자 그대로 남겨야 하면 `\{{name}}`처럼 앞에 역슬래시를 붙입니다.
 
 ## 운영 기준
 
