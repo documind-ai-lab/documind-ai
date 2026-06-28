@@ -1,6 +1,6 @@
 # Antigravity PR 리뷰
 
-CodeRabbit을 필수 리뷰 도구로 사용하지 않고, Antigravity CLI(`agy`)를 PR 일반 댓글 리뷰어로 사용합니다.
+Antigravity CLI(`agy`)를 PR 일반 댓글 리뷰어로 사용합니다.
 
 ## 사전 조건
 
