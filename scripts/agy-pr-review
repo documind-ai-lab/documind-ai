@@ -19,6 +19,9 @@ FENCED_CODE_PATTERN = re.compile(r"(?m)^[ \t]*```")
 MAX_COMMENT_BYTES = 60000
 DEFAULT_MAX_DIFF_BYTES = 300000
 DEFAULT_MODEL = "Gemini 3.1 Pro (High)"
+PROMPT_TEMPLATE_PATH = Path("templates/agy-review-prompt.md")
+COMMENT_TEMPLATE_PATH = Path("templates/agy-review-comment.md")
+TEMPLATE_TOKEN_PATTERN = re.compile(r"{{\s*([A-Za-z_][A-Za-z0-9_]*)\s*}}")
 
 
 class CommandExecutionError(Exception):
@@ -78,40 +81,34 @@ def ensure_diff_size(diff: str, max_diff_bytes: int) -> None:
         )
 
 
-def build_prompt(repo: str, pr_number: str, diff: str) -> str:
-    return f"""현재 GitHub PR diff를 코드 리뷰 관점으로 검토해주세요.
+def load_template(cwd: Path, relative_path: Path) -> str:
+    path = cwd / relative_path
+    if not path.is_file():
+        raise SystemExit(f"템플릿 파일을 찾을 수 없습니다: {relative_path}")
+    return path.read_text(encoding="utf-8")
 
-중요:
-- 파일을 수정하지 마세요.
-- 명령어를 실행하지 마세요.
-- 커밋하지 마세요.
-- 리뷰 코멘트만 한국어로 작성하세요.
 
-검토 기준:
-- 요구사항 충족 여부
-- 버그 가능성
-- 아키텍처/레이어 경계 위반
-- 테스트/검증 부족
-- 보안/권한/데이터 처리 리스크
-- 불필요한 복잡도
-- 문서/템플릿 표현의 모호함
-- 머지 전 확인 사항
+def render_template(template: str, values: dict[str, str], context: str) -> str:
+    def replace_token(match: re.Match[str]) -> str:
+        key = match.group(1)
+        if key not in values:
+            raise SystemExit(f"{context} 템플릿에 알 수 없는 치환값이 있습니다: {{{{{key}}}}}")
+        return values[key]
 
-출력 형식:
-1. 반드시 수정해야 할 항목
-2. 수정하면 좋은 항목
-3. 문제 없음
-4. 머지 전 확인 사항
+    return TEMPLATE_TOKEN_PATTERN.sub(replace_token, template)
 
-대상:
-- 저장소: {repo}
-- PR: #{pr_number}
 
-PR diff:
-<pr_diff>
-{diff}
-</pr_diff>
-"""
+def build_prompt(repo: str, pr_number: str, diff: str, cwd: Path) -> str:
+    template = load_template(cwd, PROMPT_TEMPLATE_PATH)
+    return render_template(
+        template,
+        {
+            "repo": repo,
+            "pr_number": pr_number,
+            "diff": diff,
+        },
+        "리뷰 프롬프트",
+    )
 
 
 def review_with_agy(prompt: str, timeout: str, cwd: Path, model: str) -> str:
@@ -152,18 +149,22 @@ def truncate_comment_body(body: str) -> str:
     return truncated + suffix
 
 
-def comment_body(repo: str, pr_number: str, model: str, review: str) -> str:
+def comment_body(repo: str, pr_number: str, model: str, review: str, cwd: Path) -> str:
     generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
-    body = f"""{MARKER}
-## Antigravity 리뷰 결과
-
-- 대상: `{repo}#{pr_number}`
-- 생성 시각: `{generated_at}`
-- 실행 명령: `scripts/agy-pr-review {pr_number} --post`
-- 모델: `{model}`
-
-{review}
-"""
+    template = load_template(cwd, COMMENT_TEMPLATE_PATH)
+    body = render_template(
+        template,
+        {
+            "marker": MARKER,
+            "repo": repo,
+            "pr_number": pr_number,
+            "generated_at": generated_at,
+            "command": f"scripts/agy-pr-review {pr_number} --post",
+            "model": model,
+            "review": review,
+        },
+        "PR 댓글",
+    )
     return truncate_comment_body(body)
 
 
@@ -274,9 +275,9 @@ def main() -> int:
             raise SystemExit("PR diff가 비어 있습니다. PR 번호와 base/head 상태를 확인해주세요.")
         ensure_diff_size(diff, args.max_diff_bytes)
 
-        prompt = build_prompt(repo, args.pr_number, diff)
+        prompt = build_prompt(repo, args.pr_number, diff, cwd)
         review = review_with_agy(prompt, args.timeout, cwd, args.model)
-        body = comment_body(repo, args.pr_number, args.model, review)
+        body = comment_body(repo, args.pr_number, args.model, review, cwd)
 
         if args.post:
             action = post_or_update_comment(repo, args.pr_number, body, cwd)
