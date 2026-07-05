@@ -1,6 +1,8 @@
 ## 연결 이슈
 
-관련 이슈 번호를 적어주세요. 예: `Closes #12`
+관련 이슈 번호를 적어주세요. 예: `Refs #12`
+
+`develop` 대상 PR은 병합 후 완료 처리 단계에서 연결 이슈를 직접 닫습니다.
 
 ## 작업 배경
 
@@ -20,11 +22,15 @@
 실행한 검증 명령어와 결과를 적어주세요.
 문서 변경만 포함된 경우에도 확인한 내용을 남깁니다.
 
-## 자체 점검
+## 작업 점검
 
 - [ ] 이슈의 목표와 범위를 충족한다.
 - [ ] 불필요한 파일 변경이 없다.
 - [ ] 남은 리스크를 확인하고 기록했다.
+- [ ] `templates/codex-review-result-comment.md` 기준으로 Codex 리뷰 결과 댓글을 남겼다.
+- [ ] `templates/codex-review-response-comment.md` 기준으로 Codex 리뷰 반영 결과 댓글을 남겼다.
+- [ ] `templates/codex-merge-decision-comment.md` 기준으로 병합 진행 판단 댓글을 남겼다.
+- [ ] 병합 후 연결 이슈 close와 Project `Done` 확인이 필요함을 인지했다.
 
 ## 남은 리스크
 
