@@ -7,6 +7,7 @@ from documind_ai.chat_provider import (
     select_chat_answer_provider,
 )
 from documind_ai.config import AppSettings
+from documind_ai.ollama_provider import OllamaChatAnswerProvider
 
 
 class ChatProviderTest(TestCase):
@@ -28,6 +29,22 @@ class ChatProviderTest(TestCase):
 
         with self.assertRaises(UnknownChatAnswerProviderError):
             select_chat_answer_provider(settings)
+
+    def test_selects_ollama_provider(self):
+        settings = AppSettings(
+            "documind-ai-test",
+            "test",
+            "127.0.0.1",
+            8001,
+            chat_provider="ollama",
+            ollama_base_url="http://localhost:11434",
+            ollama_model="llama3.2",
+            ollama_timeout_seconds=30,
+        )
+
+        provider = select_chat_answer_provider(settings)
+
+        self.assertIsInstance(provider, OllamaChatAnswerProvider)
 
     def test_stub_provider_keeps_chat_answer_contract(self):
         request = parse_chat_answer_request(
