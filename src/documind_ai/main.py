@@ -1,7 +1,12 @@
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from json import dumps
+from json import JSONDecodeError, dumps, loads
 
+from documind_ai.chat_answer import (
+    ChatAnswerRequestError,
+    generate_chat_answer,
+    parse_chat_answer_request,
+)
 from documind_ai.config import AppSettings, load_settings
 from documind_ai.health import build_health_response
 
@@ -15,7 +20,28 @@ def create_handler(settings: AppSettings) -> type[BaseHTTPRequestHandler]:
 
             self.send_json(HTTPStatus.OK, build_health_response(settings))
 
-        def send_json(self, status: HTTPStatus, body: dict[str, str]) -> None:
+        def do_POST(self) -> None:
+            if self.path != "/chat/answers":
+                self.send_json(HTTPStatus.NOT_FOUND, {"message": "Not Found"})
+                return
+
+            try:
+                payload = self.read_json()
+                request = parse_chat_answer_request(payload)
+                self.send_json(HTTPStatus.OK, generate_chat_answer(request))
+            except (ChatAnswerRequestError, JSONDecodeError) as error:
+                self.send_json(HTTPStatus.BAD_REQUEST, {"message": str(error)})
+
+        def read_json(self) -> object:
+            content_length = int(self.headers.get("Content-Length", "0"))
+            raw_body = self.rfile.read(content_length)
+
+            if len(raw_body) == 0:
+                raise ChatAnswerRequestError("요청 본문은 필수입니다.")
+
+            return loads(raw_body.decode("utf-8"))
+
+        def send_json(self, status: HTTPStatus, body: object) -> None:
             payload = dumps(body, ensure_ascii=False).encode("utf-8")
 
             self.send_response(status.value)
