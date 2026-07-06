@@ -40,11 +40,17 @@ class OllamaChatAnswerProvider:
 
         try:
             with urlopen(http_request, timeout=self.timeout_seconds) as response:
-                return loads(response.read().decode("utf-8"))
+                response_text = response.read().decode("utf-8")
         except HTTPError as error:
             raise OllamaChatProviderError(f"Ollama 응답 실패: status={error.code}") from error
-        except URLError as error:
-            raise OllamaChatProviderError(f"Ollama 연결 실패: {error.reason}") from error
+        except (TimeoutError, URLError) as error:
+            reason = getattr(error, "reason", str(error))
+            raise OllamaChatProviderError(f"Ollama 연결 실패: {reason}") from error
+
+        try:
+            return loads(response_text)
+        except ValueError as error:
+            raise OllamaChatProviderError("Ollama 응답은 JSON이어야 합니다.") from error
 
 
 def build_ollama_messages(request: ChatAnswerRequest) -> list[dict[str, str]]:

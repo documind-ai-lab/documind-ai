@@ -118,10 +118,38 @@ class OllamaProviderTest(TestCase):
         finally:
             ollama.stop()
 
+    def test_rejects_invalid_ollama_json_response(self):
+        ollama = OllamaStubServer(response_text="{")
+        ollama.start()
+
+        try:
+            provider = OllamaChatAnswerProvider(
+                base_url=ollama.base_url,
+                model="llama3.2",
+                timeout_seconds=5,
+            )
+            request = parse_chat_answer_request(
+                {
+                    "projectId": "project-1",
+                    "ownerId": "owner-1",
+                    "question": "분석해줘",
+                    "contexts": [],
+                    "history": [],
+                }
+            )
+
+            with self.assertRaises(OllamaChatProviderError) as error:
+                provider.answer(request)
+
+            self.assertEqual(str(error.exception), "Ollama 응답은 JSON이어야 합니다.")
+        finally:
+            ollama.stop()
+
 
 class OllamaStubServer:
-    def __init__(self, response_body):
+    def __init__(self, response_body=None, response_text=None):
         self.response_body = response_body
+        self.response_text = response_text
         self.requests = []
         self.server = None
         self.thread = None
@@ -129,6 +157,7 @@ class OllamaStubServer:
 
     def start(self):
         response_body = self.response_body
+        response_text = self.response_text
         requests = self.requests
 
         class Handler(BaseHTTPRequestHandler):
@@ -142,7 +171,12 @@ class OllamaStubServer:
                     }
                 )
 
-                payload = dumps(response_body, ensure_ascii=False).encode("utf-8")
+                response_payload = (
+                    response_text
+                    if response_text is not None
+                    else dumps(response_body, ensure_ascii=False)
+                )
+                payload = response_payload.encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(payload)))
