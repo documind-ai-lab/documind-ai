@@ -20,6 +20,9 @@ DOCUMIND_AI_HOST=0.0.0.0
 DOCUMIND_AI_PORT=8001
 DOCUMIND_AI_SERVICE_NAME=documind-ai
 DOCUMIND_AI_CHAT_PROVIDER=stub
+DOCUMIND_AI_OLLAMA_BASE_URL=http://localhost:11434
+DOCUMIND_AI_OLLAMA_MODEL=llama3.2
+DOCUMIND_AI_OLLAMA_TIMEOUT_SECONDS=60
 ```
 
 ## Health Check
@@ -78,4 +81,17 @@ Response:
 
 This service skeleton uses only the Python standard library.
 
-`DOCUMIND_AI_CHAT_PROVIDER=stub` keeps the deterministic local answer provider. Frameworks such as FastAPI and provider adapters such as OpenAI, Gemini, or Ollama will be added in separate issues after the dependency decision is explicit.
+`DOCUMIND_AI_CHAT_PROVIDER=stub` keeps the deterministic local answer provider.
+
+To use a local Ollama server:
+
+```bash
+DOCUMIND_AI_CHAT_PROVIDER=ollama
+DOCUMIND_AI_OLLAMA_BASE_URL=http://localhost:11434
+DOCUMIND_AI_OLLAMA_MODEL=llama3.2
+DOCUMIND_AI_OLLAMA_TIMEOUT_SECONDS=60
+```
+
+The Ollama provider calls `POST /api/chat` with `stream: false` and converts the response into the existing `/chat/answers` shape.
+
+Frameworks such as FastAPI and provider adapters such as OpenAI or Gemini will be added in separate issues after the dependency decision is explicit.

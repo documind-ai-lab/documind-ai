@@ -13,6 +13,7 @@ from documind_ai.chat_provider import (
 )
 from documind_ai.config import AppSettings, load_settings
 from documind_ai.health import build_health_response
+from documind_ai.ollama_provider import OllamaChatProviderError
 
 
 def create_handler(
@@ -40,6 +41,8 @@ def create_handler(
                 self.send_json(HTTPStatus.OK, provider.answer(request))
             except (ChatAnswerRequestError, JSONDecodeError) as error:
                 self.send_json(HTTPStatus.BAD_REQUEST, {"message": str(error)})
+            except OllamaChatProviderError as error:
+                self.send_json(HTTPStatus.BAD_GATEWAY, {"message": str(error)})
 
         def read_json(self) -> object:
             try:
