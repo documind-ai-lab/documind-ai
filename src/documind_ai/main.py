@@ -33,7 +33,11 @@ def create_handler(settings: AppSettings) -> type[BaseHTTPRequestHandler]:
                 self.send_json(HTTPStatus.BAD_REQUEST, {"message": str(error)})
 
         def read_json(self) -> object:
-            content_length = int(self.headers.get("Content-Length", "0"))
+            try:
+                content_length = int(self.headers.get("Content-Length", "0"))
+            except ValueError as error:
+                raise ChatAnswerRequestError("Content-Length 헤더가 올바르지 않습니다.") from error
+
             raw_body = self.rfile.read(content_length)
 
             if len(raw_body) == 0:

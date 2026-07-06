@@ -66,3 +66,15 @@ class ChatAnswerTest(TestCase):
                     "history": [],
                 }
             )
+
+    def test_parse_request_rejects_invalid_history_shape(self):
+        with self.assertRaises(ChatAnswerRequestError):
+            parse_chat_answer_request(
+                {
+                    "projectId": "project-1",
+                    "ownerId": "owner-1",
+                    "question": "분석해줘",
+                    "contexts": [],
+                    "history": [{"role": "user"}],
+                }
+            )

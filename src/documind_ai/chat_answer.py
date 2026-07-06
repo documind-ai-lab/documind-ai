@@ -14,11 +14,18 @@ class ChatContextItem:
 
 
 @dataclass(frozen=True)
+class ChatHistoryItem:
+    role: str
+    content: str
+
+
+@dataclass(frozen=True)
 class ChatAnswerRequest:
     project_id: str
     owner_id: str
     question: str
     contexts: list[ChatContextItem]
+    history: list[ChatHistoryItem]
 
 
 def parse_chat_answer_request(payload: object) -> ChatAnswerRequest:
@@ -29,8 +36,9 @@ def parse_chat_answer_request(payload: object) -> ChatAnswerRequest:
     owner_id = require_string(payload, "ownerId")
     question = require_string(payload, "question")
     contexts = parse_contexts(payload.get("contexts"))
+    history = parse_history(payload.get("history"))
 
-    return ChatAnswerRequest(project_id, owner_id, question, contexts)
+    return ChatAnswerRequest(project_id, owner_id, question, contexts, history)
 
 
 def generate_chat_answer(request: ChatAnswerRequest) -> dict[str, Any]:
@@ -79,6 +87,29 @@ def parse_contexts(value: object) -> list[ChatContextItem]:
         )
 
     return contexts
+
+
+def parse_history(value: object) -> list[ChatHistoryItem]:
+    if value is None:
+        return []
+
+    if not isinstance(value, list):
+        raise ChatAnswerRequestError("history는 배열이어야 합니다.")
+
+    history: list[ChatHistoryItem] = []
+
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise ChatAnswerRequestError(f"history[{index}]는 JSON object여야 합니다.")
+
+        history.append(
+            ChatHistoryItem(
+                role=require_string(item, "role"),
+                content=require_string(item, "content"),
+            )
+        )
+
+    return history
 
 
 def require_string(payload: dict[str, object], key: str) -> str:
