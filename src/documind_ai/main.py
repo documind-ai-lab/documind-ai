@@ -1,17 +1,26 @@
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from json import JSONDecodeError, dumps, loads
+from typing import Optional
 
 from documind_ai.chat_answer import (
     ChatAnswerRequestError,
-    generate_chat_answer,
     parse_chat_answer_request,
+)
+from documind_ai.chat_provider import (
+    ChatAnswerProvider,
+    select_chat_answer_provider,
 )
 from documind_ai.config import AppSettings, load_settings
 from documind_ai.health import build_health_response
 
 
-def create_handler(settings: AppSettings) -> type[BaseHTTPRequestHandler]:
+def create_handler(
+    settings: AppSettings,
+    chat_answer_provider: Optional[ChatAnswerProvider] = None,
+) -> type[BaseHTTPRequestHandler]:
+    provider = chat_answer_provider or select_chat_answer_provider(settings)
+
     class HealthHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
             if self.path != "/health":
@@ -28,7 +37,7 @@ def create_handler(settings: AppSettings) -> type[BaseHTTPRequestHandler]:
             try:
                 payload = self.read_json()
                 request = parse_chat_answer_request(payload)
-                self.send_json(HTTPStatus.OK, generate_chat_answer(request))
+                self.send_json(HTTPStatus.OK, provider.answer(request))
             except (ChatAnswerRequestError, JSONDecodeError) as error:
                 self.send_json(HTTPStatus.BAD_REQUEST, {"message": str(error)})
 
