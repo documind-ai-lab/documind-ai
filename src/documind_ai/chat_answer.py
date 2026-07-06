@@ -28,6 +28,9 @@ class ChatAnswerRequest:
     history: list[ChatHistoryItem]
 
 
+ALLOWED_HISTORY_ROLES = {"USER", "ASSISTANT"}
+
+
 def parse_chat_answer_request(payload: object) -> ChatAnswerRequest:
     if not isinstance(payload, dict):
         raise ChatAnswerRequestError("요청 본문은 JSON object여야 합니다.")
@@ -104,12 +107,21 @@ def parse_history(value: object) -> list[ChatHistoryItem]:
 
         history.append(
             ChatHistoryItem(
-                role=require_string(item, "role"),
+                role=parse_history_role(item, index),
                 content=require_string(item, "content"),
             )
         )
 
     return history
+
+
+def parse_history_role(item: dict[str, object], index: int) -> str:
+    role = require_string(item, "role").strip().upper()
+
+    if role not in ALLOWED_HISTORY_ROLES:
+        raise ChatAnswerRequestError(f"history[{index}].role은 USER 또는 ASSISTANT여야 합니다.")
+
+    return role
 
 
 def require_string(payload: dict[str, object], key: str) -> str:

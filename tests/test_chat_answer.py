@@ -78,3 +78,30 @@ class ChatAnswerTest(TestCase):
                     "history": [{"role": "user"}],
                 }
             )
+
+    def test_parse_request_normalizes_history_role(self):
+        request = parse_chat_answer_request(
+            {
+                "projectId": "project-1",
+                "ownerId": "owner-1",
+                "question": "분석해줘",
+                "contexts": [],
+                "history": [{"role": " user ", "content": "이전 질문"}],
+            }
+        )
+
+        self.assertEqual(request.history[0].role, "USER")
+
+    def test_parse_request_rejects_unsupported_history_role(self):
+        with self.assertRaises(ChatAnswerRequestError) as error:
+            parse_chat_answer_request(
+                {
+                    "projectId": "project-1",
+                    "ownerId": "owner-1",
+                    "question": "분석해줘",
+                    "contexts": [],
+                    "history": [{"role": "system", "content": "시스템 메시지"}],
+                }
+            )
+
+        self.assertEqual(str(error.exception), "history[0].role은 USER 또는 ASSISTANT여야 합니다.")
