@@ -8,6 +8,7 @@ class AppSettings:
     environment: str
     host: str
     port: int
+    chat_provider: str = "stub"
 
 
 def load_settings() -> AppSettings:
@@ -16,4 +17,5 @@ def load_settings() -> AppSettings:
         environment=getenv("DOCUMIND_AI_ENV", "local"),
         host=getenv("DOCUMIND_AI_HOST", "0.0.0.0"),
         port=int(getenv("DOCUMIND_AI_PORT", "8001")),
+        chat_provider=getenv("DOCUMIND_AI_CHAT_PROVIDER", "stub"),
     )
