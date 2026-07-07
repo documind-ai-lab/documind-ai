@@ -20,9 +20,12 @@ DOCUMIND_AI_HOST=0.0.0.0
 DOCUMIND_AI_PORT=8001
 DOCUMIND_AI_SERVICE_NAME=documind-ai
 DOCUMIND_AI_CHAT_PROVIDER=stub
+DOCUMIND_AI_TIMEOUT_SECONDS=60
 DOCUMIND_AI_OLLAMA_BASE_URL=http://localhost:11434
 DOCUMIND_AI_OLLAMA_MODEL=llama3.2
-DOCUMIND_AI_OLLAMA_TIMEOUT_SECONDS=60
+DOCUMIND_AI_OPENAI_BASE_URL=https://api.openai.com
+DOCUMIND_AI_OPENAI_API_KEY=
+DOCUMIND_AI_OPENAI_MODEL=gpt-4.1-mini
 ```
 
 ## Health Check
@@ -81,13 +84,13 @@ Response:
 
 ```json
 {
-  "content": "업로드된 문서 기준으로 질문을 검토했습니다. [1]\n\n질문: 견적서 리스크를 알려줘\n\n핵심 근거: 총액은 1000만원이며 납기는 별도 협의입니다.",
+  "content": "업로드된 문서 기준으로 질문을 검토했습니다.\n\n[1]",
   "sources": [
     {
       "documentId": "document-1",
       "title": "견적서.txt",
       "quote": "총액은 1000만원이며 납기는 별도 협의입니다.",
-      "relevance": 0.85
+      "relevance": 0.75
     }
   ]
 }
@@ -111,9 +114,22 @@ To use a local Ollama server:
 DOCUMIND_AI_CHAT_PROVIDER=ollama
 DOCUMIND_AI_OLLAMA_BASE_URL=http://localhost:11434
 DOCUMIND_AI_OLLAMA_MODEL=llama3.2
-DOCUMIND_AI_OLLAMA_TIMEOUT_SECONDS=60
+DOCUMIND_AI_TIMEOUT_SECONDS=60
 ```
 
-The Ollama provider calls `POST /api/chat` with `stream: false` and converts the response into the existing `/chat/answers` shape.
+The Ollama provider calls `POST /api/chat` with `stream: false` and returns raw answer text. The HTTP endpoint normalizes the result into the existing `/chat/answers` shape.
 
-Frameworks such as FastAPI and provider adapters such as OpenAI or Gemini will be added in separate issues after the dependency decision is explicit.
+To use OpenAI for final quality checks:
+
+```bash
+DOCUMIND_AI_CHAT_PROVIDER=openai
+DOCUMIND_AI_OPENAI_API_KEY=
+DOCUMIND_AI_OPENAI_MODEL=gpt-4.1-mini
+DOCUMIND_AI_TIMEOUT_SECONDS=60
+```
+
+Set `DOCUMIND_AI_OPENAI_API_KEY` only in the local shell or local `.env` file used for manual smoke checks.
+
+OpenAI requests can incur cost. Keep OpenAI smoke checks manual and use `stub` or `ollama` for normal local development.
+
+Frameworks such as FastAPI or provider adapters such as Gemini will be added in separate issues after the dependency decision is explicit.

@@ -4,48 +4,34 @@ from threading import Thread
 from unittest import TestCase
 
 from documind_ai.chat_prompt import BuiltPrompt, BuiltPromptMessage
-from documind_ai.ollama_provider import (
-    OllamaChatAnswerProvider,
-    OllamaChatProviderError,
-    build_ollama_messages,
+from documind_ai.openai_provider import (
+    OpenAIChatAnswerProvider,
+    OpenAIChatProviderError,
+    OpenAIProviderConfigurationError,
 )
 
 
-class OllamaProviderTest(TestCase):
-    def test_builds_ollama_messages_from_built_prompt(self):
-        prompt = BuiltPrompt(
-            messages=[
-                BuiltPromptMessage(role="system", content="system"),
-                BuiltPromptMessage(role="user", content="이전 질문"),
-                BuiltPromptMessage(role="assistant", content="이전 답변"),
-                BuiltPromptMessage(role="user", content="질문:\n견적서 리스크를 알려줘"),
-            ]
-        )
-
-        messages = build_ollama_messages(prompt)
-
-        self.assertEqual(messages[0], {"role": "system", "content": "system"})
-        self.assertEqual(messages[1], {"role": "user", "content": "이전 질문"})
-        self.assertEqual(messages[2], {"role": "assistant", "content": "이전 답변"})
-        self.assertEqual(messages[3]["role"], "user")
-        self.assertIn("질문:", messages[3]["content"])
-
-    def test_calls_ollama_chat_api_and_returns_raw_text(self):
-        ollama = OllamaStubServer(
+class OpenAIProviderTest(TestCase):
+    def test_calls_openai_chat_completions_api(self):
+        openai = OpenAIStubServer(
             {
-                "message": {
-                    "role": "assistant",
-                    "content": "견적서 기준 검토 결과입니다. [1]",
-                },
-                "done": True,
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": "견적서 기준 검토 결과입니다. [1]",
+                        }
+                    }
+                ]
             }
         )
-        ollama.start()
+        openai.start()
 
         try:
-            provider = OllamaChatAnswerProvider(
-                base_url=ollama.base_url,
-                model="llama3.2",
+            provider = OpenAIChatAnswerProvider(
+                base_url=openai.base_url,
+                api_key="test-key",
+                model="gpt-4.1-mini",
                 timeout_seconds=5,
             )
             prompt = BuiltPrompt(
@@ -57,52 +43,61 @@ class OllamaProviderTest(TestCase):
 
             answer = provider.generate(prompt)
 
-            self.assertEqual(ollama.requests[0]["path"], "/api/chat")
-            self.assertEqual(ollama.requests[0]["body"]["model"], "llama3.2")
-            self.assertEqual(ollama.requests[0]["body"]["stream"], False)
-            self.assertEqual(ollama.requests[0]["body"]["messages"][-1]["role"], "user")
+            self.assertEqual(openai.requests[0]["path"], "/v1/chat/completions")
+            self.assertEqual(openai.requests[0]["body"]["model"], "gpt-4.1-mini")
+            self.assertEqual(openai.requests[0]["body"]["messages"][1]["role"], "user")
+            self.assertTrue(openai.requests[0]["headers"]["Authorization"].startswith("Bearer "))
             self.assertEqual(answer, "견적서 기준 검토 결과입니다. [1]")
         finally:
-            ollama.stop()
+            openai.stop()
 
-    def test_rejects_invalid_ollama_response_shape(self):
-        ollama = OllamaStubServer({"message": {"role": "assistant", "content": ""}})
-        ollama.start()
+    def test_rejects_empty_api_key(self):
+        with self.assertRaises(OpenAIProviderConfigurationError):
+            OpenAIChatAnswerProvider(
+                base_url="http://127.0.0.1:1",
+                api_key="",
+                model="gpt-4.1-mini",
+                timeout_seconds=5,
+            )
+
+    def test_rejects_invalid_openai_response_shape(self):
+        openai = OpenAIStubServer({"choices": [{"message": {"content": ""}}]})
+        openai.start()
 
         try:
-            provider = OllamaChatAnswerProvider(
-                base_url=ollama.base_url,
-                model="llama3.2",
+            provider = OpenAIChatAnswerProvider(
+                base_url=openai.base_url,
+                api_key="test-key",
+                model="gpt-4.1-mini",
                 timeout_seconds=5,
             )
             prompt = BuiltPrompt(messages=[BuiltPromptMessage(role="user", content="question")])
 
-            with self.assertRaises(OllamaChatProviderError):
+            with self.assertRaises(OpenAIChatProviderError):
                 provider.generate(prompt)
         finally:
-            ollama.stop()
+            openai.stop()
 
-    def test_rejects_invalid_ollama_json_response(self):
-        ollama = OllamaStubServer(response_text="{")
-        ollama.start()
+    def test_rejects_invalid_openai_json_response(self):
+        openai = OpenAIStubServer(response_text="{")
+        openai.start()
 
         try:
-            provider = OllamaChatAnswerProvider(
-                base_url=ollama.base_url,
-                model="llama3.2",
+            provider = OpenAIChatAnswerProvider(
+                base_url=openai.base_url,
+                api_key="test-key",
+                model="gpt-4.1-mini",
                 timeout_seconds=5,
             )
             prompt = BuiltPrompt(messages=[BuiltPromptMessage(role="user", content="question")])
 
-            with self.assertRaises(OllamaChatProviderError) as error:
+            with self.assertRaises(OpenAIChatProviderError):
                 provider.generate(prompt)
-
-            self.assertEqual(str(error.exception), "Ollama 응답은 JSON이어야 합니다.")
         finally:
-            ollama.stop()
+            openai.stop()
 
 
-class OllamaStubServer:
+class OpenAIStubServer:
     def __init__(self, response_body=None, response_text=None):
         self.response_body = response_body
         self.response_text = response_text
@@ -123,6 +118,7 @@ class OllamaStubServer:
                 requests.append(
                     {
                         "path": self.path,
+                        "headers": dict(self.headers.items()),
                         "body": loads(body.decode("utf-8")),
                     }
                 )
