@@ -7,20 +7,34 @@ from documind_ai.chat_answer import (
     ChatAnswerRequestError,
     parse_chat_answer_request,
 )
+from documind_ai.chat_prompt import build_chat_prompt
 from documind_ai.chat_provider import (
     ChatAnswerProvider,
+    UnknownChatAnswerProviderError,
     select_chat_answer_provider,
+)
+from documind_ai.chat_response import (
+    ChatAnswerNormalizationError,
+    normalize_chat_answer,
 )
 from documind_ai.config import AppSettings, load_settings
 from documind_ai.health import build_health_response
-from documind_ai.ollama_provider import OllamaChatProviderError
+from documind_ai.ollama_provider import (
+    OllamaChatProviderError,
+    OllamaChatProviderTimeoutError,
+)
+from documind_ai.openai_provider import (
+    OpenAIChatProviderError,
+    OpenAIChatProviderTimeoutError,
+    OpenAIProviderConfigurationError,
+)
 
 
 def create_handler(
     settings: AppSettings,
     chat_answer_provider: Optional[ChatAnswerProvider] = None,
 ) -> type[BaseHTTPRequestHandler]:
-    provider = chat_answer_provider or select_chat_answer_provider(settings)
+    provider = chat_answer_provider
 
     class HealthHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
@@ -38,10 +52,16 @@ def create_handler(
             try:
                 payload = self.read_json()
                 request = parse_chat_answer_request(payload)
-                self.send_json(HTTPStatus.OK, provider.answer(request))
+                prompt = build_chat_prompt(request)
+                raw_answer = self.get_chat_answer_provider().generate(prompt)
+                self.send_json(HTTPStatus.OK, normalize_chat_answer(raw_answer, request))
             except (ChatAnswerRequestError, JSONDecodeError) as error:
                 self.send_json(HTTPStatus.BAD_REQUEST, {"message": str(error)})
-            except OllamaChatProviderError as error:
+            except (OpenAIProviderConfigurationError, UnknownChatAnswerProviderError) as error:
+                self.send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"message": str(error)})
+            except (OpenAIChatProviderTimeoutError, OllamaChatProviderTimeoutError) as error:
+                self.send_json(HTTPStatus.GATEWAY_TIMEOUT, {"message": str(error)})
+            except (OpenAIChatProviderError, OllamaChatProviderError, ChatAnswerNormalizationError) as error:
                 self.send_json(HTTPStatus.BAD_GATEWAY, {"message": str(error)})
 
         def read_json(self) -> object:
@@ -56,6 +76,14 @@ def create_handler(
                 raise ChatAnswerRequestError("요청 본문은 필수입니다.")
 
             return loads(raw_body.decode("utf-8"))
+
+        def get_chat_answer_provider(self) -> ChatAnswerProvider:
+            nonlocal provider
+
+            if provider is None:
+                provider = select_chat_answer_provider(settings)
+
+            return provider
 
         def send_json(self, status: HTTPStatus, body: object) -> None:
             payload = dumps(body, ensure_ascii=False).encode("utf-8")

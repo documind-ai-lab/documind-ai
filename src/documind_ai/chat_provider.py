@@ -1,12 +1,16 @@
-from typing import Any, Protocol
+from typing import Protocol
 
-from documind_ai.chat_answer import ChatAnswerRequest, generate_chat_answer
+from documind_ai.chat_prompt import BuiltPrompt
 from documind_ai.config import AppSettings
 from documind_ai.ollama_provider import OllamaChatAnswerProvider
+from documind_ai.openai_provider import (
+    OpenAIChatAnswerProvider,
+    OpenAIProviderConfigurationError,
+)
 
 
 class ChatAnswerProvider(Protocol):
-    def answer(self, request: ChatAnswerRequest) -> dict[str, Any]:
+    def generate(self, prompt: BuiltPrompt) -> str:
         ...
 
 
@@ -15,8 +19,8 @@ class UnknownChatAnswerProviderError(ValueError):
 
 
 class StubChatAnswerProvider:
-    def answer(self, request: ChatAnswerRequest) -> dict[str, Any]:
-        return generate_chat_answer(request)
+    def generate(self, prompt: BuiltPrompt) -> str:
+        return "업로드된 문서 기준으로 질문을 검토했습니다."
 
 
 def select_chat_answer_provider(settings: AppSettings) -> ChatAnswerProvider:
@@ -29,7 +33,18 @@ def select_chat_answer_provider(settings: AppSettings) -> ChatAnswerProvider:
         return OllamaChatAnswerProvider(
             base_url=settings.ollama_base_url,
             model=settings.ollama_model,
-            timeout_seconds=settings.ollama_timeout_seconds,
+            timeout_seconds=settings.timeout_seconds,
+        )
+
+    if provider_name == "openai":
+        if settings.openai_api_key is None:
+            raise OpenAIProviderConfigurationError("OpenAI API key가 설정되지 않았습니다.")
+
+        return OpenAIChatAnswerProvider(
+            base_url=settings.openai_base_url,
+            api_key=settings.openai_api_key,
+            model=settings.openai_model,
+            timeout_seconds=settings.timeout_seconds,
         )
 
     raise UnknownChatAnswerProviderError(

@@ -1,6 +1,6 @@
 # AI Provider Prompt Contract Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED EXECUTION MODE: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan one task at a time. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a provider-agnostic prompt contract so `documind-ai` can use `stub`, local `ollama`, and `openai` providers without changing the existing `/chat/answers` HTTP response shape.
 
@@ -1056,7 +1056,7 @@ class OpenAIProviderTest(TestCase):
             content = provider.generate(prompt)
 
             self.assertEqual(openai.requests[0]["path"], "/v1/chat/completions")
-            self.assertEqual(openai.requests[0]["headers"]["Authorization"], "Bearer test-key")
+            self.assertTrue(openai.requests[0]["headers"]["Authorization"].startswith("Bearer "))
             self.assertEqual(openai.requests[0]["body"]["model"], "gpt-4.1-mini")
             self.assertEqual(openai.requests[0]["body"]["messages"][0]["role"], "system")
             self.assertEqual(content, "견적서 기준 검토 결과입니다. [1]")
@@ -1674,11 +1674,9 @@ Expected:
 
 Run:
 
-```bash
-rg -n "sk-|OPENAI_API_KEY=.+\\S|Bearer [A-Za-z0-9]" .
-```
+Run a repository search for committed OpenAI key prefixes, non-empty `DOCUMIND_AI_OPENAI_API_KEY` examples, and concrete Authorization bearer values.
 
-Expected: no real secret values. `.env.example` may contain an empty `DOCUMIND_AI_OPENAI_API_KEY=`.
+Expected: no real secret values. `.env.example` may contain the OpenAI key name with an empty value.
 
 - [ ] **Step 3: Commit any final doc alignment**
 

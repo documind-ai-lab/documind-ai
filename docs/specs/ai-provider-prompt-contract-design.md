@@ -235,9 +235,11 @@ DOCUMIND_AI_OLLAMA_MODEL=llama3.2
 OpenAI:
 
 ```text
-DOCUMIND_AI_OPENAI_API_KEY=<secret>
+DOCUMIND_AI_OPENAI_API_KEY=
 DOCUMIND_AI_OPENAI_MODEL=gpt-4.1-mini
 ```
+
+실제 API key는 로컬 shell 또는 로컬 `.env`에만 설정하고 저장소 문서나 테스트 코드에는 남기지 않는다.
 
 기존 `DOCUMIND_AI_OLLAMA_TIMEOUT_SECONDS`는 `DOCUMIND_AI_TIMEOUT_SECONDS`로 통합하는 방향을 우선한다. 하위 호환이 필요하면 기존 값을 fallback으로 읽을 수 있다.
 

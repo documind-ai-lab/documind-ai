@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from documind_ai.chat_answer import parse_chat_answer_request
+from documind_ai.chat_prompt import BuiltPrompt, BuiltPromptMessage
 from documind_ai.chat_provider import (
     StubChatAnswerProvider,
     UnknownChatAnswerProviderError,
@@ -8,6 +8,10 @@ from documind_ai.chat_provider import (
 )
 from documind_ai.config import AppSettings
 from documind_ai.ollama_provider import OllamaChatAnswerProvider
+from documind_ai.openai_provider import (
+    OpenAIChatAnswerProvider,
+    OpenAIProviderConfigurationError,
+)
 
 
 class ChatProviderTest(TestCase):
@@ -39,31 +43,44 @@ class ChatProviderTest(TestCase):
             chat_provider="ollama",
             ollama_base_url="http://localhost:11434",
             ollama_model="llama3.2",
-            ollama_timeout_seconds=30,
+            timeout_seconds=30,
         )
 
         provider = select_chat_answer_provider(settings)
 
         self.assertIsInstance(provider, OllamaChatAnswerProvider)
 
-    def test_stub_provider_keeps_chat_answer_contract(self):
-        request = parse_chat_answer_request(
-            {
-                "projectId": "project-1",
-                "ownerId": "owner-1",
-                "question": "견적서 리스크를 알려줘",
-                "contexts": [
-                    {
-                        "documentId": "document-1",
-                        "title": "견적서.txt",
-                        "content": "총액은 1000만원입니다.",
-                    }
-                ],
-                "history": [],
-            }
+    def test_selects_openai_provider(self):
+        settings = AppSettings(
+            "documind-ai-test",
+            "test",
+            "127.0.0.1",
+            8001,
+            chat_provider="openai",
+            openai_api_key="test-key",
+            openai_model="gpt-4.1-mini",
         )
 
-        answer = StubChatAnswerProvider().answer(request)
+        provider = select_chat_answer_provider(settings)
 
-        self.assertIn("[1]", answer["content"])
-        self.assertEqual(answer["sources"][0]["documentId"], "document-1")
+        self.assertIsInstance(provider, OpenAIChatAnswerProvider)
+
+    def test_rejects_openai_provider_without_api_key(self):
+        settings = AppSettings(
+            "documind-ai-test",
+            "test",
+            "127.0.0.1",
+            8001,
+            chat_provider="openai",
+            openai_api_key=None,
+        )
+
+        with self.assertRaises(OpenAIProviderConfigurationError):
+            select_chat_answer_provider(settings)
+
+    def test_stub_provider_generates_raw_text(self):
+        prompt = BuiltPrompt(messages=[BuiltPromptMessage(role="user", content="분석해줘")])
+
+        answer = StubChatAnswerProvider().generate(prompt)
+
+        self.assertEqual(answer, "업로드된 문서 기준으로 질문을 검토했습니다.")
