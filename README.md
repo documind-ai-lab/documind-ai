@@ -57,9 +57,25 @@ curl -X POST http://localhost:8001/chat/answers \
         "content": "총액은 1000만원이며 납기는 별도 협의입니다."
       }
     ],
-    "history": []
+    "history": [
+      {
+        "role": "USER",
+        "content": "이 견적서 먼저 요약해줘"
+      },
+      {
+        "role": "ASSISTANT",
+        "content": "견적서 핵심 내용을 요약했습니다. [1]"
+      }
+    ]
   }'
 ```
+
+Request fields:
+
+- `projectId`, `ownerId`, `question` are required non-empty strings.
+- `contexts` is optional. Each context item requires `documentId`, `title`, and `content`.
+- `history` is optional. Each history item requires `role` and `content`.
+- `history[].role` accepts `USER` or `ASSISTANT`. Input is normalized for surrounding whitespace and case.
 
 Response:
 
@@ -76,6 +92,12 @@ Response:
   ]
 }
 ```
+
+Response fields:
+
+- `content` is a non-empty answer string.
+- `sources` is an array of document evidence used in the answer.
+- `sources[].relevance` is a number from `0` to `1`, or `null` when not calculated.
 
 ## Scope
 
